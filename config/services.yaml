@@ -25,8 +25,12 @@ services:
 
     App\Command\FetchCustomersFromCustomersApiCommand:
         arguments:
+            $customerImporterService: '@App\Service\CustomerImporterService'
+
+
+    App\Service\CustomerImporterService:
+        arguments:
             $customerRepository: '@App\Repository\CustomerRepository'
             $http: '@App\Utils\Http'
-
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

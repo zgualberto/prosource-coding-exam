@@ -3,59 +3,29 @@
 namespace App\Tests\Command;
 
 use App\Command\FetchCustomersFromCustomersApiCommand;
-use App\Repository\CustomerRepository;
-use App\Utils\Http;
-use GuzzleHttp\Exception\ClientException;
-use GuzzleHttp\Psr7\Request;
-use GuzzleHttp\Psr7\Response;
+use App\Service\CustomerImporterService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class FetchCustomersFromCustomersApiCommandTest extends TestCase
 {
-    private $customerRepositoryMock;
-    private $httpMock;
+    private $customerImporterServiceMock;
 
     protected function setUp(): void
     {
-        $this->customerRepositoryMock = $this->createMock(CustomerRepository::class);
-        $this->httpMock = $this->createMock(Http::class);
+        $this->customerImporterServiceMock = $this->createMock(CustomerImporterService::class);
     }
 
     public function testExecuteSuccess()
     {
-        // Mock environment variables
-        putenv('APP_CUSTOMER_API_URL=http://example.com');
-        putenv('APP_CUSTOMER_MAX_FETCH_RESULT=10');
+        // Mock CustomerImporterService to return true
+        $this->customerImporterServiceMock->method('import')
+            ->willReturn(true);
 
-        // Mock API response
-        $apiResponse = new Response(200, [], json_encode([
-            'results' => [
-                [
-                    'name' => ['first' => 'Terra', 'last' => 'Powell'],
-                    'email' => 'terra.powell@example.com',
-                    'login' => ['username' => 'lazygorilla707', 'password' => '0.0.000'],
-                    'gender' => 'female',
-                    'location' => ['country' => 'Australia', 'city' => 'Bowral'],
-                    'phone' => '00-6142-2839',
-                    'nat' => 'AU'
-                ]
-            ]
-        ]));
-
-        // Set up Http mock to return the mocked response
-        $this->httpMock->expects($this->once())
-            ->method('get')
-            ->willReturn($apiResponse);
-
-        // Mock storeOrUpdate to accept any parameter and return true
-        $this->customerRepositoryMock->expects($this->once())
-            ->method('storeOrUpdate')
-            ->with($this->isType('array'));
-
-        // Create command instance with mocked CustomerRepository and Http
-        $command = new FetchCustomersFromCustomersApiCommand($this->customerRepositoryMock, $this->httpMock);
+        // Create command instance with mocked service
+        $command = new FetchCustomersFromCustomersApiCommand($this->customerImporterServiceMock);
 
         // Use Application to add command
         $application = new Application();
@@ -71,28 +41,17 @@ class FetchCustomersFromCustomersApiCommandTest extends TestCase
         // Check command output
         $output = $commandTester->getDisplay();
         $this->assertStringContainsString('Command run successfully.', $output);
+        $this->assertEquals(Command::SUCCESS, $commandTester->getStatusCode());
     }
 
-    public function testExecuteFailsWithClientException()
+    public function testExecuteFailure()
     {
-        // Mock environment variables
-        putenv('APP_CUSTOMER_API_URL=http://example.com');
+        // Mock CustomerImporterService to return false
+        $this->customerImporterServiceMock->method('import')
+            ->willReturn(false);
 
-        // Create request and response mocks
-        $request = new Request('GET', 'test');
-        $response = new Response(500); // Simulate server error
-
-        // Mock ClientException
-        $this->httpMock->expects($this->once())
-            ->method('get')
-            ->will($this->throwException(new ClientException('Error', $request, $response)));
-
-        // Ensure storeOrUpdate is not called
-        $this->customerRepositoryMock->expects($this->never())
-            ->method('storeOrUpdate');
-
-        // Create command instance with mocked CustomerRepository and Http
-        $command = new FetchCustomersFromCustomersApiCommand($this->customerRepositoryMock, $this->httpMock);
+        // Create command instance with mocked service
+        $command = new FetchCustomersFromCustomersApiCommand($this->customerImporterServiceMock);
 
         // Use Application to add command
         $application = new Application();
@@ -108,5 +67,6 @@ class FetchCustomersFromCustomersApiCommandTest extends TestCase
         // Check command output
         $output = $commandTester->getDisplay();
         $this->assertStringContainsString('Command failed.', $output);
+        $this->assertEquals(Command::FAILURE, $commandTester->getStatusCode());
     }
 }
